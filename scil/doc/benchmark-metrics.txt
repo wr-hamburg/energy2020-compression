@@ -1,0 +1,15 @@
+Compression throughput and ratios could depend on:
+
+Data characteristics
+    - size of data buffer
+    - dimensionality
+    - randomness/entropy
+    - minimum value
+    - maximum value
+    - mean
+    - median ?
+    - std. deviation
+
+User defined compression parameters:
+    - absolute/relative error tolerance
+    - compression algorithm to use

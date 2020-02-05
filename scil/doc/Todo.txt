@@ -1,0 +1,7 @@
+- Benchmarking
+- Konfiguration
+- Automatische Algorithmenwahl
+- Präsentation
+- Ausarbeitung
+- ZFP reparieren
+- multi-dimensionalität

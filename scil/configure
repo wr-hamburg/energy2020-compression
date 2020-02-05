@@ -1,0 +1,173 @@
+#!/bin/bash
+
+PARAMETERS="$0 $*"
+CMAKEFLAGS=
+SRCDIR=$(dirname "$(readlink -f "$0")")/src
+CURPATH="$PWD"
+
+
+function help(){
+	echo ""
+	echo "SCIL uses the CMake (http://www.cmake.org) buildsystem instead of configure."
+	echo "CMake uses different options than configure, but you can use this script to "
+	echo "specify them in the traditional way and get the equivalent cmake command."
+	echo "Use the following options to change default paths."
+	echo "--prefix=<dir>           : installation prefix"
+	echo "--lgsl=<dir>             : path to lib-gsl"
+	echo "--lzlib=<dir>            : path to lzlib"
+	echo "--netcdf=<dir>           : path to NetCDF"
+	echo "--cc=<compiler>          : path to the compiler"
+	echo
+	echo "Optional:"
+        echo "--code-coverage   : compile with ctest and use gcov via target coverage to measure code coverage"
+	echo "--build-dir=<dir>     : directory in which to build"
+	echo "--debug                  : build SIOX with debug flags"
+	echo "--verbose                : output the command but do not execute it"
+	echo "--reconfigure            : run configure again with the parameters used the last time"
+	echo "--plantuml-jar-dir=<dir> : directory containing plantuml.jar, useful for building the documentation"
+	echo
+}
+
+buildDIR="build"
+
+function checknetcdf(){
+	if [[ "$1" == "" ]] ; then
+		return
+	fi
+	where=$1
+	if [[ ! -e "$where" ]] ; then
+		echo "Error could not find NetCDF in $where ; directory does not exist"
+		exit 1
+	fi
+	nc-config --libs > /dev/null
+	if [ $? != 0 ] ; then
+		if [[ -e $where/include && -e $where/lib ]] ; then
+			AI="$AI $where/include $where/$extra_dir"
+			AL="$AL $where/lib $where/lib64 $where/$extra_dir"
+		else
+			echo "Error could not find $what in $where"
+			exit 1
+		fi
+	else
+		if [[ -e $where/include && -e $where/lib ]] ; then
+			AI="$AI $(nc-config --includedir)"
+			AL="$AL $(nc-config --libs)"
+		fi
+	fi
+}
+
+function check(){
+	if [[ "$1" == "" ]] ; then
+		return
+	fi
+	where=$1
+	what=$2
+	extra_dir=$3
+	if [[ ! -e "$where" ]] ; then
+		echo "Error could not find $what in $where ; directory does not exist"
+		exit 1
+	fi
+
+	export PKG_CONFIG_PATH=$where/lib/pkgconfig/:$where/lib64/pkgconfig/:$PKG_CONFIG_PATH
+	#does not ship with pkg-config
+	pkg-config --exists $what
+	if [ $? != 0 ] ; then
+		if [[ -e $where/include && -e $where/lib ]] ; then
+			AI="$AI $where/include $where/$extra_dir"
+			AL="$AL $where/lib $where/lib64 $where/$extra_dir"
+		else
+			echo "Error could not find $what in $where"
+			exit 1
+		fi
+	fi
+}
+
+
+
+function reconfigure(){
+	if [[ ! -e "configure.log" ]] ; then
+		echo "Error, didn't run configure before!" ;
+		exit 1
+	fi
+	$(cat configure.log)
+	exit $?
+}
+
+set -- `getopt -u -l "help,version,debug,reconfigure,prefix:,plantuml-jar-dir:,cc:,netcdf:,with-cc:,with-cxx:,verbose,build-dir:,lzlib:,lgsl:,code-coverage" -o "hV" -- "$@"`
+test $# -lt 1  && exit 1
+while test $# -gt 0
+do
+	case "$1" in
+		--help) help; exit;;
+		--reconfigure) reconfigure;;
+		--cc) export CC="$2"; shift;;
+		--version) cmake --version; exit;;
+		--lgsl) check "$2" "gsl"; shift;;
+		--lzlib) check "$2" "z"; shift;;
+		--netcdf) checknetcdf "$2" ; shift;;
+		--prefix) prefix="$2"; shift;;
+		--debug) debug="yes"; ;;
+                --code-coverage) debug="yes" ; codeCoverage="yes" ;;
+		--with-cc) ccbin="$2"; shift;;
+		--with-cxx) cxxbin="$2"; shift;;
+		--build-dir) buildDIR="$2"; shift;;
+		--plantuml-jar-dir) export PLANTUML_JAR_PATH="$2"; shift;;
+		--verbose) VERBOSE="YES";;
+		-V) VERBOSE="YES";;
+		--) ;;
+		*) echo "Unknown option $1"; exit 1;;
+	esac
+	shift
+done
+
+
+echo $PARAMETERS > configure.log
+
+export ADDITIONAL_INC_PATH=$AI
+export ADDITIONAL_LIB_PATH=$AL
+TARGET_DIR="/usr/local"
+
+if test -n "$codeCoverage"; then
+	CMAKEFLAGS="$CMAKEFLAGS -DCODE_COVERAGE=ON"
+fi
+
+if test -n "$debug"; then
+	CMAKEFLAGS="$CMAKEFLAGS -DCMAKE_BUILD_TYPE:STRING=Debug"
+else
+	CMAKEFLAGS="$CMAKEFLAGS -DCMAKE_BUILD_TYPE:STRING=Release"
+fi
+
+if test -n "$prefix"; then
+	CMAKEFLAGS="$CMAKEFLAGS -DCMAKE_INSTALL_PREFIX:PATH=$prefix"
+	TARGET_DIR="$prefix"
+fi
+if test -n "$ccbin"; then
+	CMAKEFLAGS="$CMAKEFLAGS -DCMAKE_C_COMPILER:FILEPATH=$ccbin"
+fi
+if test -n "$cxxbin"; then
+	CMAKEFLAGS="$CMAKEFLAGS -DCMAKE_CXX_COMPILER:FILEPATH=$cxxbin"
+fi
+
+COMMAND="mkdir -p $buildDIR && cd $buildDIR && echo $PARAMETERS > configure.log ; rm CMakeCache.txt 2>/dev/null; cmake $CMAKEFLAGS \"$SRCDIR\""
+
+if [[ "$VERBOSE" == "YES" ]] ; then
+	echo "Your current configure options translate more or less to:"
+	echo "$COMMAND"
+	exit 0
+else
+	eval "$COMMAND"
+	ERROR="$?"
+	if [[ "$ERROR" != 0 ]] ; then
+		echo "An error occurred during the configuration, aborting!"
+		exit 1
+	fi
+fi
+
+echo
+echo "To compile run:"
+echo "  cd $buildDIR"
+echo "  make"
+echo "To run tests run:"
+echo "  make test"
+echo "To generate documentation:"
+echo "  make doc"

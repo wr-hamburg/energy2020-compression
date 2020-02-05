@@ -1,0 +1,45 @@
+From 36f42be7b53aa20290effcba14f8494e3f65b034 Mon Sep 17 00:00:00 2001
+From: Julian Kunkel <juliankunkel@googlemail.com>
+Date: Tue, 19 Dec 2017 11:32:09 +0100
+Subject: [PATCH] Flexible read information from file.
+
+---
+ ./libdispatch/dvar.c              | 13 ++++++++++++++++++++++
+ 1 file changed, 62 insertions(+)
+
+diff --git a/netcdf-4.4.1.1/libdispatch/dvar.c b/netcdf-4.4.1.1/libdispatch/dvar.c
+index 2a4cda8..8a1a1e4 100644
+--- a/libdispatch/dvar.c
++++ b/libdispatch/dvar.c
+@@ -8,6 +8,8 @@ Research/Unidata. See COPYRIGHT file for more info.
+ #include "ncdispatch.h"
+ #include "netcdf_f.h"
+ 
++#include <scil.h>
++
+ /** \defgroup variables Variables
+ 
+ Variables hold multi-dimensional arrays of data.
+@@ -715,6 +726,19 @@ nc_def_var_fill(int ncid, int varid, int no_fill, const void *fill_value)
+     NC* ncp;
+     int stat = NC_check_id(ncid,&ncp);
+     if(stat != NC_NOERR) return stat;
++		if(getenv("NETCDF_SCIL_HINTS_FILE") != NULL){
++		        scil_user_hints_t * hints = malloc(sizeof(scil_user_hints_t));
++                       char name[4096];
++                       int ret = ncvarinq(ncid, varid, name, NULL, NULL, NULL, NULL);
++                       ret = scil_user_hints_load(hints, getenv("NETCDF_SCIL_HINTS_FILE"), name);
++                       if (ret == SCIL_NO_ERR){
++    			   printf("Setting scil hints for variable: %s\n", name);
++			   ncp->dispatch->def_var_scil(ncid, varid, hints);
++                       }else{
++                          free(hints);
++                       }
++		}
++
+     return ncp->dispatch->def_var_fill(ncid,varid,no_fill,fill_value);
+ }
+ 
+-- 
+2.7.4
+

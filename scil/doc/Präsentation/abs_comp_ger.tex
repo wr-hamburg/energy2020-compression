@@ -1,0 +1,193 @@
+\documentclass[compress]{beamer}
+
+\usetheme{Hamburg}
+
+\usepackage[utf8]{inputenc}
+\usepackage{units}
+
+\title{SCIL - Scientific Compression Interface Library}
+\author{Armin Schaare}
+\institute{Arbeitsbereich Wissenschaftliches Rechnen\\Fachbereich Informatik\\Fakultät für Mathematik, Informatik und Naturwissenschaften\\Universität Hamburg}
+\date{2015-11-04}
+
+\titlegraphic{\includegraphics[width=0.5\textwidth]{logo}}
+
+\begin{document}
+
+\begin{frame}
+	\titlepage
+\end{frame}
+
+\begin{frame}
+	\frametitle{Gliederung (Agenda)}
+
+	\tableofcontents[hidesubsections]
+\end{frame}
+
+\section{Ziel / Aufgabenstellung}
+\subsection*{}
+
+\begin{frame}
+	\frametitle{Ziel}
+
+	Implementation einer C-Bibliothek zur Kompression von wissenschaftlichen Daten
+\end{frame}
+
+\begin{frame}
+	\frametitle{Aufgabenstellung}
+
+	\begin{itemize}[<+->]
+		\item Kompression der Daten
+		\begin{itemize}[<+->]
+			\item Verlustbehaftet
+			\item Effizient (Kompressionsrate und -Geschwindigkeit)
+		\end{itemize}
+		\item Benutzerschnittstelle
+		\begin{itemize}[<+->]
+			\item Eingabe: Array an float/double Werten
+			\item Steuerung: relative/absolute Fehlertoleranz
+			\item Ausgabe: komprimiertes Array
+		\end{itemize}
+	\end{itemize}
+\end{frame}
+
+\section{Realisierung}
+\subsection*{}
+
+\begin{frame}
+	\frametitle{Zeitplan}
+
+	\begin{itemize}[<+->]
+		\item<1-5> 02.12.15 Kompression mit absoluter Fehlertoleranz
+		\item<2-4> 06.01.16 Kompression mit relativer Fehlertoleranz
+		\item<3-4> 24.02.16 Nützliche Subtools
+		\item<4> 30.03.16 Feinschliffe und Zeit zur Bewältigung aufgetretener Probleme
+	\end{itemize}
+\end{frame}
+
+\begin{frame}
+	\frametitle{Kompression mit absoluter Fehlertoleranz}
+
+	Prinzip:
+
+	\begin{itemize}[<+->]
+		\pause
+		\item Finde Minimum und Maximum der Daten
+		\item Berechne Anzahl diskreter Werte (mithilfe Fehlertoleranz)
+		\item Berechne benötigte Bits pro Zahl
+		\item Berechne benötigte Bytes des komprimierten Arrays
+		\item Bilde alle Werte auf verlustbehaftete Werte ab und speichere diese bitweise
+	\end{itemize}
+\end{frame}
+
+\begin{frame}
+	\frametitle{Kompression mit absoluter Fehlertoleranz}
+
+	Angenommen 3 Bits zur Darstellung einer Zahl:
+	\bigskip\mbox{}
+	\pause
+
+	\begin{tabular}{|ccccccccccccccccc}
+		\hline
+		0 & 0 & \multicolumn{1}{c|}{0} & 0 & 0 & \multicolumn{1}{c|}{1} & 0 & 1 & \multicolumn{1}{c|}{0} & 0 & 1 & \multicolumn{1}{c|}{1} & 1 & 0 & \multicolumn{1}{c|}{0} & 0 & ... \\ \hline
+		\hline
+		* & * & * & * & * & * & * & \multicolumn{1}{c|}{*} & * & * & * & * & * & * & * & \multicolumn{1}{c|}{*} & ... \\ \hline
+	\end{tabular}
+	\bigskip\bigskip\mbox{}
+	\pause 
+
+	Angenommen 11 ... :
+	\bigskip\mbox{}
+	\pause
+
+	\begin{tabular}{|ccccccccccccccccc}
+		\hline
+		0 & 1 & 0 & 0 & 0 & 1 & 1 & 0 & 1 & 1 & \multicolumn{1}{c|}{0} & 0 & 1 & 0 & 0 & 0 & ... \\ \hline
+		\hline
+		* & * & * & * & * & * & * & \multicolumn{1}{c|}{*} & * & * & * & * & * & * & * & \multicolumn{1}{c|}{*} & ... \\ \hline
+	\end{tabular}
+
+\end{frame}
+
+\begin{frame}
+	\frametitle{Kompression mit absoluter Fehlertoleranz}
+
+	Erzielte Kompression:
+	\pause
+
+	\begin{center}
+		\LARGE{$S=\frac{\lceil\log_2{(1 + \frac{max - min}{2 * tol})}\rceil}{U_{bit}}$}\large{ , mit}
+	\end{center}
+
+	\begin{tabular}{ll}
+		$min$: & Minimum der vorkommenden Daten \\
+		$max$: & Maximum der vorkommenden Daten \\
+		$tol$: & Absolute Fehlertoleranz \\
+		$U_{bit}$: & Anzahl der Bits in floats bzw. doubles \\
+		$S$: & Speicherbedarf, relativ zu den unkomprimierten Data
+	\end{tabular}
+
+\end{frame}
+
+\begin{frame}
+	\frametitle{Kompression mit absoluter Fehlertoleranz}
+
+	\begin{columns}[T]
+	\column{.5\textwidth}
+		Beispiel:
+		\bigskip
+		\pause
+
+		Temperaturvariable, mit
+		\bigskip\mbox{}
+		\begin{tabular}{lcr}
+			$min$ & $=$ & $-100$ \\
+			$max$ & $=$ & $100$ \\
+			$tol$ & $=$ & $0.01$ \\
+			$U_{bit}$ & $=$ & $64$
+		\end{tabular}
+		\pause
+
+	\column{.5\textwidth}
+		Es ergibt sich
+		\bigskip\mbox{}
+		\begin{tabular}{lcl}
+			$S$ & $=$ & $\frac{\lceil\log_2{(1 + \frac{max - min}{2 * tol})}\rceil}{U_{bit}}$ \\
+			& & \\
+			& $=$ & $\frac{\lceil\log_2{10001}\rceil}{64}$ \\
+			& & \\
+			& $=$ & $\frac{14}{64}$ \\
+			& & \\
+			& $=$ & $0.21875$
+		\end{tabular}
+	\end{columns}
+	\bigskip
+	\pause
+
+	\begin{center}
+		\LARGE{Datenkompression um Faktor $\sim$\underline{5}}
+	\end{center}
+
+\end{frame}
+
+\section{Fazit}
+\subsection*{}
+
+\begin{frame}
+	\frametitle{Fazit}
+
+	\begin{itemize}[<+->]
+		\item Großes Potential zur Datenkomprimierung
+		\item Schnell durch $O(n)$ Zeitaufwandt
+	\end{itemize}
+\end{frame}
+
+\begin{frame}
+	\frametitle{Fragen}
+
+	\begin{center}
+		\Huge{Fragen?}
+	\end{center}
+\end{frame}
+
+\end{document}
